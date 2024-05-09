@@ -1,0 +1,47 @@
+---
+title: "Pack Data"
+author: "Antonio Paez"
+date: "February 18, 2017"
+output: html_document
+---
+
+
+
+
+The function below, when called, will print HTML code containing a link to an encoded version of an RData file.
+
+
+```r
+setDownloadURI = function(list, filename = stop("'filename' must be specified"), textHTML = "Click here to download the data.", fileext = "RData", envir = parent.frame()){
+  require(base64enc,quietly = TRUE)
+  divname = paste(sample(LETTERS),collapse="")
+  tf = tempfile(pattern=filename, fileext = fileext)
+  save(list = list, file = tf, envir = envir)
+  filenameWithExt = paste(filename,fileext,sep=".")
+  
+  uri = dataURI(file = tf, mime = "application/octet-stream", encoding = "base64")
+  cat("<a style='text-decoration: none' id='",divname,"'></a>
+    <script>
+    var a = document.createElement('a');
+    var div = document.getElementById('",divname,"');
+    div.appendChild(a);
+    a.setAttribute('href', '",uri,"');
+    a.innerHTML = '",textHTML,"' + ' (",filenameWithExt,")';
+    if (typeof a.download != 'undefined') {
+      a.setAttribute('download', '",filenameWithExt,"');
+    }else{
+      a.setAttribute('onclick', 'confirm(\"Your browser does not support the download HTML5 attribute. You must rename the file to ",filenameWithExt," after downloading it (or use Chrome/Firefox/Opera). \")');
+    }
+    </script>",
+    sep="")
+}
+```
+
+Make sure your `results` is equal to `asis` in the block where `setDownloadURI` is called.
+
+
+```
+## Error in save(list = list, file = tf, envir = envir): object 'walkerlake' not found
+```
+
+As seen here, a file containing the R objects will be encoded into the HTML file. Large objects, of course, will make for a large HTML file. Note that the file will be base64 encoded, which increases the size of the file by about a third (over the binary RData file).

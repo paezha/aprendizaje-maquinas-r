@@ -68,7 +68,7 @@ Y=\beta_0+\beta_1 X_1+\beta_2 X_2+\dots+\beta_p X_p +e
 ````
 donde $\beta_0,\beta_1,\dots,\beta_p$ son parámetros desconocidos (o coeficientes) y $e$ es un termino aleatorio de error, que  es independiente de las variables explicativas $X_1, X_2,\dots, X_p$  y tiene media cero.
 
-![Regresión lineal múltiple con una variable respuesta ($Y$) y dos variables predictoras ($X_1,X_2)$\label{fig:MLR}](C:/Users/Usuario/Dropbox/MasterMBA/Figures/MLR.jpg){width='350px'}
+![Regresión lineal múltiple con una variable respuesta ($Y$) y dos variables predictoras ($X_1,X_2)$\label{fig:MLR}](MLR.jpg){width='350px'}
 
 # Estimación de los parámetros. Método de los mínimos cuadrados.
 Supongamos que tenemos una muestra de tamaño $n$ en la que hemos observado las variables 
@@ -197,7 +197,7 @@ Asimismo, el coeficiente de determinación parcial se puede interpretar como:
 
 Carguemos la base de datos de empleados
 
-![Base de datos de empleados](C:/Users/Usuario/Dropbox/MasterMBA/Figures/Datos_empleados.png){width='600px'}
+![Base de datos de empleados](Datos_empleados.png){width='600px'}
 
 
 ```{r, collapse=TRUE,prompt=TRUE}

@@ -1,0 +1,535 @@
+---
+title: "Artificial Neural Networks - Session 2"
+output: pdf_document
+---
+
+# Introduction
+
+As seen in the preceding session, a neural network can be seen as an ensemble of models, with each node in a hidden layer acting to aggregate the inputs and then converting them into outputs, that could in turn be inputs to ulterior hidden layers.
+
+The design of the network is important in the sense that it allows the model to deal with more complex patterns. Network architecture is thus a key aspect in this kind of modeling.
+
+There are two fundamental aspects of network architecture that need addressing:
+
+1. The number of hidden layers.
+2. The number of neurons in the layers.
+
+A rule of thumb that is sometimes mentioned for selecting the number of neurons is the average between the number of inputs and the number of outputs. This rule is overly simplistic, and others (e.g., Hastie et al., 2009) instead say that it is better to have too many hidden units than too few. There are several reasons for this.
+
+Firstly, since the neural network acts as an aggregator of models, more hidden units mean that more idiosincratic patterns can be detected. Superfluous hidden units can be shrunk to zero by means of a regularization technique.
+
+Secondly, rules such as the average of inputs and outputs do not take into consideration the complexity of the true underlying process, the number of training observations, the inherent noise in the data, etc. It is unlikely that any simple rule can be effective in a majority of cases.
+
+Thirdly, a variety of approaches can be used to guide the selection of number of hidden units, such as cross-validation. As well, it is possible to implement other techniques that aggregate the outputs of several networks, for instance with different numbers of hidden units, or that were trained using different training sets. One such approach is _bagging_.
+
+In this session we will explore some of these issues.
+
+Let us begin by loading the packages that will be used in this session.
+```{r }
+library(dplyr) # A Grammar of Data Manipulation
+library(e1071) # Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien
+library(ggplot2) # Create Elegant Data Visualisations Using the Grammar of Graphics
+library(neuralnet) # Training of Neural Networks
+```
+
+First, we will generate grids to use for training and testing. The data are obtained using a simple grid in the unit square. There are two variables, X1 and X2 that define this space, both bounded between 0 and 1. It is important to note that in these examples the variables are already scaled by design. **In most practical situations, the variables would need to be scaled, either by normalization or standardization**.
+```{r}
+grid <- expand.grid(X1 = seq(0, 1, by = 0.1),
+                    X2 = seq(0, 1, by = 0.1))
+grid.test <- expand.grid(X1 = seq(0, 1, by=0.01),
+                         X2 = seq(0, 1, by=0.01))
+```
+
+# Linear decision boundary
+
+The first example uses the dataset simulated above. The true decision boundary is a simple deterministic rule, whereby an observation is classified based on whether $X_2>X_1$. In other words, the decision boundary is simply the 45 degree line in the space of the sample. We use the `mutate` function from the `dplyr` package. Y in the grid is a categorical variable.
+```{r}
+grid.1 <- mutate(grid, 
+                 Y = (X1 < X2)) # Create the first simulated dataset. 
+```
+
+Plot these observations using `ggplot2`.
+```{r}
+ggplot(grid.1,
+       aes(x = X1,
+           y = X2,
+           color = Y)) + 
+  geom_point()
+```
+
+Given the dataframe grid.1, let us now train a neural network. We need to first define a formula that specifies the dependent variable and the independent variables.
+```{r}
+f <- as.formula("Y ~ X1 + X2")
+```
+
+The `neuralnet` package can be used to design the network. The arguments of `neuralnet` include a function, a dataframe, and the number of hidden layers/neurons per hidden layer. Check the documentation for a detailed list of arguments.
+```{r}
+?neuralnet
+```
+
+We will initially train a neural network using only one neuron in one hidden layer. The argument `linear.output` is set to TRUE, so that the activation function is not applied to the output node. The default activation function is the logistic function.
+```{r}
+nn <- neuralnet(f, 
+                data = grid.1, 
+                hidden = 1, 
+                linear.output = T)
+plot(nn)
+```
+
+Use the trained network to predict values using the testing dataset. The function for this is `compute`.
+```{r}
+nn.results <- compute(nn, 
+                      grid.test[,1:2])
+```
+
+Note that the results are given in values between 0 and 1, in other words, as probabilities. We use the `round` function to convert to a categorical variable.
+```{r}
+grid.test.1 <- grid.test
+
+grid.test.1 <- grid.test.1 |>
+  mutate(Y = round(nn.results$net.result))
+```
+
+Plot the decision boundary.
+```{r}
+ggplot(grid.test.1, 
+       aes(x = X1, 
+           y = X2, 
+           z = Y)) + 
+  geom_contour(binwidth = 0.8, 
+               linewidth = 1, 
+               color = "black") + 
+  geom_point(data = grid.1, 
+             aes(x = X1, 
+                 y = X2, 
+                 color = Y))
+```
+
+What happens if we increase the complexity in the architecture of the network, for instance, by adding neurons and/or layers?
+```{r}
+nn <- neuralnet(f, 
+                data = grid.1, 
+                hidden = c(3, 3, 3), 
+                linear.output = T)
+plot(nn)
+```
+
+What happens to the training error? What are the implications of the changes to the training error? Keep in mind that in this example there is zero noise, since the decision boundary is based on a purely deterministic rule.
+
+Is the decision boundary affected?
+```{r}
+grid.test.1 <- grid.test
+grid.test.1 <- grid.test.1 |>
+  mutate(Y = round(nn.results$net.result))
+
+ggplot(grid.test.1, 
+       aes(x = X1, 
+           y = X2, 
+           z = Y)) + 
+  geom_contour(binwidth = 0.8, 
+               size = 1, 
+               color = "black") + 
+  geom_point(data = grid.1, 
+             aes(x = X1, 
+                 y = X2, 
+                 color = Y))
+```
+
+# Example of non-linear decision boundary
+
+Now let us simulate a dataset that has a non-linear decision boundary. Note that the decision boundary now is a segment of an ellipse.
+```{r}
+grid.2 <- grid |>
+  mutate(Y = (((0.2*X2-0.4)^2 + (X1-0.5)^2) > 0.15))
+#grid.2$Yn <- as.integer(grid2$Z0f)
+
+#Plot  
+ggplot(grid.2, 
+       aes(x = X1, 
+           y = X2, 
+           color = Y)) + 
+  geom_point()
+```
+
+Train a simple network, with only one node in one hidden layer.
+```{r}
+nn <- neuralnet(f, 
+                data = grid.2, 
+                hidden = 1, 
+                linear.output = T)
+plot(nn)
+```
+
+Use this trained network to obtain predictions using the test dataset. What do you think will be the decision boundary like?
+```{r}
+nn.results <- compute(nn, 
+                      grid.test[,1:2])
+#Round results and add to dataframe grid.test.2 for plotting
+grid.test.2 <- grid.test
+grid.test.2 <- grid.test.2 |>
+  mutate(Y = round(nn.results$net.result))
+```
+
+Plot the decision boundary.
+```{r}
+ggplot(grid.test.2,
+       aes(x = X1, 
+           y = X2, 
+           z = Y)) + 
+  geom_contour(binwidth = 0.8, 
+               linewidth = 1, 
+               color = "black") + 
+  geom_point(data = grid.2, 
+             aes(x = X1,
+                 y = X2,
+                 color = Y))
+```
+
+Next, increase the number of neurons in a single hidden layer.
+```{r}
+nn <- neuralnet(f, 
+                data = grid.2, 
+                hidden = 2, 
+                linear.output = T)
+plot(nn)
+```
+
+Predict using the test dataset, and plot the new decision boundary.
+```{r}
+nn.results <- compute(nn, grid.test[,1:2])
+#Round results and add to dataframe grid.test.2 for plotting
+grid.test.2 <- grid.test
+grid.test.2 <- grid.test.2 |>
+  mutate(Y = round(nn.results$net.result))
+#plot
+ggplot(grid.test.2, 
+       aes(x = X1, 
+           y = X2, 
+           z = Y)) + 
+  geom_contour(binwidth = 0.8, 
+               size = 1, 
+               color = "black") + 
+  geom_point(data = grid.2, 
+             aes(x = X1,
+                 y = X2, 
+                 color = Y))
+```
+
+Next, increase the number of hidden layers.
+```{r}
+nn <- neuralnet(f, 
+                data = grid.2, 
+                hidden = c(2, 2), 
+                linear.output = T)
+plot(nn)
+```
+
+Predict using the test dataset, and plot the new decision boundary.
+```{r}
+nn.results <- compute(nn, grid.test[,1:2])
+#Round results and add to dataframe grid.test.2 for plotting
+grid.test.2 <- grid.test |>
+  mutate(Y = round(nn.results$net.result))
+
+#plot
+ggplot(grid.test.2, 
+       aes(x = X1, 
+           y = X2,
+           z = Y)) + 
+  geom_contour(binwidth = 0.8, 
+               size = 1, 
+               color = "black") + 
+  geom_point(data = grid.2, 
+             aes(x = X1, 
+                 y = X2, 
+                 color = Y))
+```
+
+# A more complex decision boundary
+
+Let us try a more complex decision boundary, as shown below.
+```{r}
+grid.3 <- mutate(grid,
+                 Y=as.factor((((X2-1)^2 + (X1-1)^2) > 0.20) + (((X2)^2 + (X1)^2) > 0.20) + (((X2-1)^2 + (X1)^2) > 0.20)),
+                 Y = Y==2)
+#Plot  
+ggplot(grid.3,
+       aes(x = X1,
+           y = X2, 
+           color = Y)) + 
+  geom_point()
+```
+
+Again, we will begin by training a naive network with only one neuron in one hidden layer. As has been seen in the examples above, this leads to a linear decision boundary.
+```{r}
+nn <- neuralnet(f,data=grid.3,hidden=1,linear.output=T)
+#Predict
+nn.results <- compute(nn,grid.test[,1:2])
+
+#Round results and add to dataframe grid3 for plotting
+grid.test.3 <- grid.test |>
+  mutate(Y = round(nn.results$net.result))
+
+#Plot decision boundary
+ggplot(grid.test.3,
+       aes(X1, X2, z=Y)) + 
+  geom_contour(binwidth = 0.8, 
+               size = 1, 
+               color = "black") + 
+  geom_point(data = grid.3, 
+             aes(x = X1,
+                 y = X2,
+                 color = Y))
+```
+
+Increase the number of neurons and/or layers. What happens if the network is retrained with the exact same architecture and exact same training dataset?
+```{r}
+nn <- neuralnet(f, 
+                data = grid.3, 
+                hidden = c(2, 2), 
+                linear.output = T) #4,4
+
+#Predict
+nn.results <- compute(nn,
+                      grid.test[,1:2])
+
+#Round results and add to dataframe grid3 for plotting
+grid.test.3 <- grid.test |>
+  mutate(Y = round(nn.results$net.result))
+
+#Plot decision boundary
+ggplot(grid.test.3,
+       aes(x = X1, 
+           y = X2, 
+           z = Y)) + 
+  geom_contour(binwidth = 0.8, 
+               size = 1, 
+               color = "black") + 
+  geom_point(data = grid.3, 
+             aes(x = X1, 
+                 y = X2, 
+                 color = Y))
+```
+
+As the examples above illustrate, designing the architecture of the network cannot be easily reduced to a simple rule of thumb, and training is contingent as well on the initial values used. Therefore, experimentation and using diagnostic tools is recommended.
+
+# Adding some noise
+
+Next, let us take a look at a different example that involves some noise as well, as opposed to a purely deterministic decision rule.
+
+The following example creates a non-linear decision boundary, and introduces some stochasticity into the data generation process. The data are designed as a pocket of observations of class 2 embedded in a cloud of observations of class 1.
+
+Here we define the parameters for the simulation.
+```{r}
+n1 = 1000 #Number of observations in class 1
+n2 = 200 #Number of observations in class 2 (pocket)
+k = 0.0 #Separation between class 1 and class 2 observations on the plane
+```
+
+The data are simulated here, using the parameters defined above.
+```{r}
+#Randomly draw n1 class 1 observations
+junk1 <- matrix(rnorm(n1*2, 0, 1),
+                ncol = 2)
+
+#Create "pocket" for observations of class 2
+#First quadrant
+junk1.1 <- subset(junk1,(junk1[,1]<0)  & (junk1[,2]>0))
+junk1.1[,1] <-  junk1.1[,1]+(-k*runif(length(junk1.1)/2))
+junk1.1[,2] <-  junk1.1[,2]+(k*runif(length(junk1.1)/2))
+#Second quadrant
+junk1.2 <- subset(junk1,(junk1[,1]>0)  & (junk1[,2]>0))
+junk1.2[,1] <-  junk1.2[,1]+(k*runif(length(junk1.2)/2))
+junk1.2[,2] <-  junk1.2[,2]+(k*runif(length(junk1.2)/2))
+#Third quadrant
+junk1.3 <- subset(junk1,(junk1[,1]>0)  & (junk1[,2]<0))
+junk1.3[,1] <-  junk1.3[,1]+(k*runif(length(junk1.3)/2))
+junk1.3[,2] <-  junk1.3[,2]+(-k*runif(length(junk1.3)/2))
+#Fourth quadrant
+junk1.4 <- subset(junk1,(junk1[,1]<0)  & (junk1[,2]<0))
+junk1.4[,1] <-  junk1.4[,1]+(-k*runif(length(junk1.4)/2))
+junk1.4[,2] <-  junk1.4[,2]+(-k*runif(length(junk1.4)/2))
+
+#Randomly draw n2 class 2 observations
+junk2 <- matrix(rnorm(n2*2, 0, 0.25), ncol = 2)
+```
+
+Next, concatenate the observations, create a categorical variable, and scale. This will create a dataframe for training.
+```{r}
+#Concatenate all observations
+X = rbind(junk1.1, junk1.2, junk1.3, junk1.4, junk2)
+
+#Create categorical variable for classes 1 and 2
+Y <- c(rep(F, n1), rep(T, n2))
+
+#Create training dataframe
+dftrain <- data.frame(X = X)
+colnames(dftrain) <- c("X1", "X2")
+maxs <- apply(dftrain, 2, max) 
+mins <- apply(dftrain, 2, min)
+dftrain <- as.data.frame(scale(dftrain, center = mins, scale = maxs - mins))
+dftrain$Y <- Y
+
+#Visualize
+ggplot(data = dftrain, 
+       aes(x = X1, 
+           y = X2, 
+           color=Y)) + 
+  geom_point()
+```
+
+We will use the testing dataframe that we created for the preceding examples.
+
+Train a neural network.
+```{r eval = FALSE}
+
+# THIS CHUNK DOES THROWS AN ERROR WHEN TRAINING THE NET
+nn <- neuralnet(f, 
+                data = dftrain, 
+                hidden = c(4, 5), 
+                linear.output = T)
+
+#Predict
+nn.results <- compute(nn ,
+                      grid.test[,1:2])
+```
+
+```{r}
+#Round results and add to dataframe grid for plotting
+grid.test.4 <- grid.test
+grid.test.4$Y <- round(nn.results$net.result)
+#Plot decision boundary
+ggplot() + geom_point(data = dftrain, aes(X1, X2, color = Y)) + geom_contour(data = grid.test.4, aes(X1, X2, z = Y), binwidth = 0.8, size = 1, color = "black") 
+```
+
+How does this compare with SVM?
+```{r}
+#SVM with radial kernel
+data = cbind(dftrain[,1:2],as.factor(dftrain$Y))
+colnames(data)[3] <- paste("Y")
+svm.rad <- svm(Y ~ X1 + X2, 
+               data = data,
+               kernel = "radial", 
+               cost = 0.1, 
+               gamma = 9)
+#summary(svm.rad)
+```
+
+```{r}
+#Off-sample (test) predictions
+svm.results <- predict(svm.rad, grid.test[,1:2])
+#Round results and add to dataframe grid for plotting
+grid.test.5 <- grid.test
+grid.test.5$Y <- as.numeric(svm.results) - 1
+#Plot decision boundary
+ggplot() + 
+  geom_point(data = dftrain, 
+             aes(x = X1,
+                 y = X2,
+                 color = Y)) + 
+  geom_contour(data = grid.test.5, 
+               aes(x = X1, 
+                   y = X2, 
+                   z = Y), 
+               binwidth = 0.8, 
+               size = 1, 
+               color = "black") 
+```
+
+#An empirical example
+
+For this example, use the Boston housing values dataset included in the `spdep` library. Load the library and dataset.
+```{r}
+library(spdep) # Spatial Dependence: Weighting Schemes, Statistics
+data(boston)
+keeps <- c("MEDV", "CRIM", "ZN", "INDUS", "NOX", "RM", "AGE", "DIS", "RAD", "TAX", "PTRATIO", "B", "LSTAT")
+boston <- boston.c[keeps]
+#Scale variables
+maxs <- apply(boston, 2, max) 
+mins <- apply(boston, 2, min)
+boston <- as.data.frame(scale(boston, center = mins, scale = maxs - mins))
+```
+
+Obtain train and test samples.
+```{r}
+set.seed(1)
+train <- sample(506, 
+                round(0.8*506))
+#Subset
+boston.train <- boston[train,]
+boston.test <- boston[-train,]
+```
+
+Train a neural network using this dataset. Define a function first.
+```{r}
+f <- as.formula("MEDV ~ CRIM + ZN + INDUS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT")
+```
+
+```{r}
+nn <- neuralnet(f, 
+                data = boston.train, 
+                hidden = c(5, 5, 5), 
+                linear.output = T)
+#Predict
+nn.results <- compute(nn,
+                      boston.test[,2:13])
+#Mean squared error
+sum((boston.test$MEDV -  nn.results$net.result)^2)/nrow(boston.test)
+```
+
+How does this compare with regression analysis?
+```{r}
+lr <- lm(f, 
+         data = boston.train)
+#Predict
+lr.results <- predict(lr, boston.test[,2:13])
+#Mean squared error
+sum((boston.test$MEDV -  lr.results)^2)/nrow(boston.test)
+```
+
+Repeat experiment, now including spatially lagged variables.
+```{r}
+boston.lag <- data.frame(lag.listw(nb2listw(boston.soi),boston$CRIM))
+names(boston.lag) <- paste0("wCRIM")
+boston.lag$wZN <- lag.listw(nb2listw(boston.soi),boston$ZN)
+boston.lag$wINDUS <- lag.listw(nb2listw(boston.soi),boston$INDUS)
+boston.lag$wNOX <- lag.listw(nb2listw(boston.soi),boston$NOX)
+boston.lag$wRM <- lag.listw(nb2listw(boston.soi),boston$RM)
+boston.lag$wAGE <- lag.listw(nb2listw(boston.soi),boston$AGE)
+boston.lag$wRAD <- lag.listw(nb2listw(boston.soi),boston$RAD)
+boston.lag$wTAX <- lag.listw(nb2listw(boston.soi),boston$TAX)
+boston.lag$wPTRATIO <- lag.listw(nb2listw(boston.soi),boston$PTRATIO)
+boston.lag$wB <- lag.listw(nb2listw(boston.soi),boston$B)
+boston.lag$wLSTAT <- lag.listw(nb2listw(boston.soi),boston$LSTAT)
+```
+
+New dataframe with lagged variables
+```{r}
+bostonx <- cbind(boston,boston.lag)
+bostonx.train <- bostonx[train,]
+bostonx.test <- bostonx[-train,]
+```
+
+New formula.
+```{r}
+f <- as.formula("MEDV ~ CRIM + ZN + INDUS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT + wCRIM + wZN + wINDUS + wNOX + wRM + wAGE + wRAD + wTAX + wPTRATIO + wB + wLSTAT")
+```
+
+New network.
+```{r}
+nn <- neuralnet(f, data = bostonx.train, hidden = c(5, 5, 5), linear.output = T)
+#Predict
+nn.results <- compute(nn ,bostonx.test[,2:24])
+#Mean squared error
+sum((bostonx.test$MEDV -  nn.results$net.result)^2)/nrow(bostonx.test)
+```
+
+Regression model:
+```{r}
+lr <- lm(f, 
+         data = bostonx.train)
+#Predict
+lr.results <- predict(lr, bostonx.test[,2:24])
+#Mean squared error
+sum((bostonx.test$MEDV -  lr.results)^2)/nrow(bostonx.test)
+```
