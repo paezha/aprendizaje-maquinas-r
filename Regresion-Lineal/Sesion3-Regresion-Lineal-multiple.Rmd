@@ -202,7 +202,9 @@ Carguemos la base de datos de empleados
 
 ```{r, collapse=TRUE,prompt=TRUE}
 library(readxl)
-datos<-read_xlsx("C:/Users/Usuario/Dropbox/MasterMBA/Datos/Datos_de_empleados.xlsx")
+library(glue)
+library(here)
+datos <- read_xlsx(glue::glue(here::here(), "/Datos_de_empleados.xlsx"))
 ```
 Expliquenmos con un modelo de regresion lineal el salario de los trabajadores como función del salario inicial, el nivel educativo del trabajador y los meses de experiencia previa. Para ello en R tenemos que indicar las variables a relacionar de la siguiente manera:
 
